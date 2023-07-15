@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 0.1.20230715
+#TODO Version 0.2.20230715
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
@@ -12,6 +12,7 @@ from PyQt5 import QtGui,QtCore # 导入PyQt5GUI模块
 from FindAllWays import reshape_image_find, ToBinray, GetGontours # 导入地图寻路部分
 from MapScan import  reshape_image_scan, detect, find,affine_transformation # 导入地图扫描部分
 from Astar import Map,MapNode,astar # 导入A*算法部分
+import Identify # 导入识别模块
 import numpy as np # 导入Numpy模块
 import serialapi # 导入串口模块
 
@@ -223,42 +224,84 @@ class Example(QWidget): #TODO 主窗口类
                 # 计算拐点与当前位置的距离
                 dx2 = corner[0] - current_position[0];dy2 = corner[1] - current_position[1]
                 if dy2 >0: # 向右
-                    Direction = 'D';single_route_steps = dy2
+                    Direction = 0;SensDirection = 0 if index+1 < len(corners) else 2;single_route_steps = dy2
                     TempMarker = 0 # 临时记录挡板距离
                     while True: # 检测距挡板距离
                         if not((TempMarker+corner[1])<19 and boardmap[corner[0]][TempMarker+corner[1]] == 1):break
                         TempMarker += 1
                 elif dy2 <0: # 向左
-                    Direction = 'A';single_route_steps = abs(dy2)
+                    Direction = 2;SensDirection = 2 if index+1 < len(corners) else 0;single_route_steps = abs(dy2)
                     TempMarker = 0 # 临时记录挡板距离
                     while True: # 检测距挡板距离
                         if not((corner[1]-TempMarker)>=0 and boardmap[corner[0]][corner[1]-TempMarker] == 1):break
                         TempMarker += 1
                 elif dx2 <0: # 向上
-                    Direction = 'W';single_route_steps = abs(dx2)
+                    Direction = 1;SensDirection = 1 if index+1 < len(corners) else 3;single_route_steps = abs(dx2)
                     TempMarker = 0 # 临时记录挡板距离
                     while True: # 检测距挡板距离
                         if not((corner[0]-TempMarker)>=0 and boardmap[corner[0]-TempMarker][corner[1]] == 1):break
                         TempMarker += 1
                 elif dx2 >0: # 向下
-                    Direction = 'S';single_route_steps = dx2
+                    Direction = 3;SensDirection = 3 if index+1 < len(corners) else 1;single_route_steps = dx2
                     TempMarker = 0 # 临时记录挡板距离
                     while True: # 检测距挡板距离
                         if not((TempMarker+corner[0])<19 and boardmap[TempMarker+corner[0]][corner[1]] == 1):break
                         TempMarker += 1
-                print("第"+str(index+1)+"段路径前往"+str(corner)+"拐点,(测距/前进)方向",Direction,"路径长度",single_route_steps,"距挡板距离",TempMarker-1)
+                print("第"+str(index+1)+"段路径前往"+str(corner)+"拐点,前进方向",Direction,"测距方向",SensDirection,
+                                                                "路径长度",single_route_steps,"距挡板距离",TempMarker-1)
                 current_position = corner # 更新当前位置
                 # 发送控制指令
-                # serialapi.communicate(0xaa,0xc2,hex(index+1),hex(Direction),hex(Direction),0x00,hex(single_route_steps))
+                # serialapi.communicate(0xaa,0xc2,hex(index),hex(Direction),hex(Direction),hex(TempMarker-1),hex(single_route_steps))
                 # while True:
                 #     if serialapi.recv == 'aa 01 c2 '+str(hex(Direction))+' 00 00 00': break;# 等待接收到回复信号
                 # serialapi.recv = str.encode('xxxxxxxxxxx')
                 # self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
+            
+            #TODO 等待运行完成
+            # while True:
+            #     if serialapi.recv == 'aa 21 00 00 00 00 00': break;# 等待接收到回复信号
+            # serialapi.recv = str.encode('xxxxxxxxxxx')
+            # 发送回复指令
+            # serialapi.communicate(0xaa,0x01,0x21,0x00,0x00,0x00,0x00)
             print("第"+str(itel+1)+"个宝藏点已到达,当前位置",current_position)
             self.sublbl.setText("第"+str(itel+1)+"个宝藏点已到达,当前位置"+str(current_position))
             time.sleep(1)
+
             # TODO 拍照识别
-            # 等待填写
+            camera = Camera(1) # 打开相机
+            camera.open()
+            start_time = time.time()
+            while time.time() - start_time < 5:
+                ret, Treas_image = camera.read() # 读取相机宝藏图像
+                Treas_qimg = QtGui.QImage(Treas_image.data, Treas_image.shape[1], Treas_image.shape[0],Treas_image.shape[1]*3, QtGui.QImage.Format_BGR888)
+                Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
+                self.camera_label.setPixmap(Treas_pixmap)
+                self.sublbl.setText('剩余'+str(int(5-time.time() + start_time))+"秒进行拍摄识别")
+            Treas_img_copy = Treas_image.copy()
+            Treas_image = reshape_image_scan(Treas_image)[0]
+            copy_img = Treas_image
+
+            Treas_image, contours, yellow = Identify.FindColorOne(Treas_img_copy, 1)  # 黄色
+            Treas_image, contours, green = Identify.FindColorOne(Treas_img_copy, 2)  # 绿色
+            Treas_image, contours, blue = Identify.FindColorOne(Treas_img_copy, 0)  # 蓝色
+            Treas_image, contours, red = Identify.FindRedOne(Treas_img_copy, contours)  # 红色
+            #蓝色1，黄色1，为蓝色真宝藏；红色1，绿色1，为红色真宝藏；蓝色1，绿色1，为蓝色假宝藏；红色1，黄色1，为红色假宝藏
+            if blue == 1 and yellow == 1:
+                self.sublbl.setText('蓝色真宝藏');print("蓝色真宝藏");Treasure = "BlueTrue"
+            elif red == 1 and green == 1:
+                self.sublbl.setText('红色真宝藏');print("红色真宝藏");Treasure = "RedTrue"
+            elif blue == 1 and green == 1:
+                self.sublbl.setText('蓝色假宝藏');print("蓝色假宝藏");Treasure = "BlueFalse"
+            elif red == 1 and yellow == 1:
+                self.sublbl.setText('红色假宝藏');print("红色假宝藏");Treasure = "RedFalse"
+            else:
+                self.sublbl.setText('无宝藏');print("无宝藏");Treasure = "None"
+
+            Identify.ShapeDetection(copy_img, contours, Treasure)  #形状检测
+            Treas_qimg = QtGui.QImage(copy_img.data, copy_img.shape[1], copy_img.shape[0],copy_img.shape[1]*3, QtGui.QImage.Format_BGR888)
+            Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
+            self.camera_label.setPixmap(Treas_pixmap)
+            time.sleep(1)
 
             # TODO 发送撞击指令与否
             # 等待填写
