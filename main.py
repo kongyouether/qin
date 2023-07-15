@@ -51,10 +51,16 @@ class Example(QWidget): #TODO 主窗口类
     def initUI(self): #* 界面初始化函数
 
         self.lbl = QLabel('系统初始化进行中', self)
-        self.lbl.move(0, 30)
+        self.lbl.move(0, 10)
         self.lbl.setFixedSize(600, 30)
         self.lbl.setAlignment(QtCore.Qt.AlignCenter) # 修改字体居中
         self.lbl.setFont(QtGui.QFont("Arial", 16)) # 修改字体大小为16px
+
+        self.sublbl = QLabel(' 等待路径规划完成后运行', self)
+        self.sublbl.move(0, 40)
+        self.sublbl.setFixedSize(600, 30)
+        self.sublbl.setAlignment(QtCore.Qt.AlignCenter) # 修改字体居中
+        self.sublbl.setFont(QtGui.QFont("Arial", 12)) # 修改字体大小为12px
 
         # 启动按钮
         self.stbtn = QPushButton('拍摄藏宝图', self)
@@ -112,7 +118,7 @@ class Example(QWidget): #TODO 主窗口类
 
 
     def Startup(self): #* 启动函数
-        global result_final
+        global result_final,boardmap
         camera = Camera(1) # 打开相机
         camera.open()
         # 等待调整相机并拍照
@@ -184,7 +190,7 @@ class Example(QWidget): #TODO 主窗口类
 
 
     def Runcar(self): #* 运行函数
-        global result_final
+        global result_final,boardmap
         current_position = [18,-1] # 当前位置存储
 
         #TODO 运行8段路程，完成宝藏遍历
@@ -209,6 +215,7 @@ class Example(QWidget): #TODO 主窗口类
             #     if serialapi.recv == 'aa 01 c1 00 00 00 00': break;# 等待接收到回复信号
             # serialapi.recv = str.encode('xxxxxxxxxxx')
             # self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
+            self.sublbl.setText("前往宝藏点"+str(itel+1)+"路段数目为"+str(len(corners)))
             print("前往宝藏点",str(itel+1),"路段数目为"+str(len(corners)))
 
             #TODO 计算并发送每段路程控制指令并等待运行完成
@@ -217,13 +224,29 @@ class Example(QWidget): #TODO 主窗口类
                 dx2 = corner[0] - current_position[0];dy2 = corner[1] - current_position[1]
                 if dy2 >0: # 向右
                     Direction = 'D';single_route_steps = dy2
+                    TempMarker = 0 # 临时记录挡板距离
+                    while True: # 检测距挡板距离
+                        if not((TempMarker+corner[1])<19 and boardmap[corner[0]][TempMarker+corner[1]] == 1):break
+                        TempMarker += 1
                 elif dy2 <0: # 向左
                     Direction = 'A';single_route_steps = abs(dy2)
+                    TempMarker = 0 # 临时记录挡板距离
+                    while True: # 检测距挡板距离
+                        if not((corner[1]-TempMarker)>=0 and boardmap[corner[0]][corner[1]-TempMarker] == 1):break
+                        TempMarker += 1
                 elif dx2 <0: # 向上
                     Direction = 'W';single_route_steps = abs(dx2)
+                    TempMarker = 0 # 临时记录挡板距离
+                    while True: # 检测距挡板距离
+                        if not((corner[0]-TempMarker)>=0 and boardmap[corner[0]-TempMarker][corner[1]] == 1):break
+                        TempMarker += 1
                 elif dx2 >0: # 向下
                     Direction = 'S';single_route_steps = dx2
-                print("第"+str(index+1)+"段路径前往"+str(corner)+"拐点,(测距/前进)方向",Direction,"路径长度",single_route_steps)
+                    TempMarker = 0 # 临时记录挡板距离
+                    while True: # 检测距挡板距离
+                        if not((TempMarker+corner[0])<19 and boardmap[TempMarker+corner[0]][corner[1]] == 1):break
+                        TempMarker += 1
+                print("第"+str(index+1)+"段路径前往"+str(corner)+"拐点,(测距/前进)方向",Direction,"路径长度",single_route_steps,"距挡板距离",TempMarker-1)
                 current_position = corner # 更新当前位置
                 # 发送控制指令
                 # serialapi.communicate(0xaa,0xc2,hex(index+1),hex(Direction),hex(Direction),0x00,hex(single_route_steps))
@@ -232,8 +255,8 @@ class Example(QWidget): #TODO 主窗口类
                 # serialapi.recv = str.encode('xxxxxxxxxxx')
                 # self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
             print("第"+str(itel+1)+"个宝藏点已到达,当前位置",current_position)
+            self.sublbl.setText("第"+str(itel+1)+"个宝藏点已到达,当前位置"+str(current_position))
             time.sleep(1)
-
             # TODO 拍照识别
             # 等待填写
 
