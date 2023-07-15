@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 0.1.20230714
+#TODO Version 0.1.20230715
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
