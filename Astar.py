@@ -4,7 +4,9 @@
 #TODO Version 0.1.20230714
 #! 依赖项目：numba
 #! 被引用：main.py
-
+import numpy as np
+import networkx as nx # 导入网络图模块
+import itertools # 导入迭代器模块
 
 #* A*算法地图存储
 class Map(object):
@@ -93,3 +95,73 @@ def astar(workMap):
         currNode = currNode.father
     result.append((currNode.x,currNode.y))
     return result
+
+
+def tsp(boardmap,treasureinmap):
+    '''tsp部分'''
+    # 计算起点(18,0)到各个宝藏的距离
+    print("treasureinmap0:", treasureinmap)
+    firstdistance = []
+    for i in range(len(treasureinmap)):
+        map = Map(boardmap, 18, 0, treasureinmap[i][1], treasureinmap[i][0])
+        result = astar(map)
+        firstdistance.append(len(result) - 1)
+    print("firstdistance:", firstdistance)
+    # 将距离起点最近的宝藏放在第一个
+    for dis in range(len(firstdistance)):
+        if firstdistance[dis] == min(firstdistance):
+            treasureinmap[0],treasureinmap[dis] = treasureinmap[dis],treasureinmap[0]
+            # temp = treasureinmap[0]
+            # treasureinmap[0] = treasureinmap[i]
+            # treasureinmap[i] = temp
+    print("treasureinmap1:", treasureinmap)
+    # 再次计算起点到各个宝藏的距离
+    seconddistance = []
+    for i in range(len(treasureinmap)):
+        map = Map(boardmap, 18, 0, treasureinmap[i][1], treasureinmap[i][0])
+        result = astar(map)
+        seconddistance.append(len(result) - 1)
+    # 计算各个宝藏之间的距离
+    distances = np.zeros((8, 8)) # [[0 for i in range(8)] for j in range(8)]
+    for i in range(8):
+        for j in range(8):
+            if i < j:
+                map = Map(boardmap, treasureinmap[i][1], treasureinmap[i][0], treasureinmap[j][1],
+                            treasureinmap[j][0])
+                result = astar(map)
+                distances[i][j] = len(result) - 1
+                distances[j][i] = len(result) - 1
+    print("距离矩阵distance:", distances)
+    # 停止计时
+    # print("计算距离矩阵用时：", end - start)
+    # 计算最短路径
+    # 定义城市和距离矩阵
+    cities = [1, 2, 3, 4, 5, 6, 7, 8]
+    # 创建完全图
+    G = nx.Graph()
+    G.add_nodes_from(cities)
+    for i, j in itertools.combinations(range(len(cities)), 2):
+        G.add_edge(cities[i], cities[j], weight=distances[i][j])
+
+    # 求解旅行商问题
+    shortest_tour = None
+    min_tour_length = float('inf')
+    for permutation in itertools.permutations(cities):
+        tour_length = sum([G[permutation[i]][permutation[i + 1]]['weight'] for i in range(len(cities) - 1)])
+        tour_length += G[permutation[-1]][permutation[0]]['weight']
+        if tour_length < min_tour_length:
+            shortest_tour = permutation
+            min_tour_length = tour_length
+    print("最短路径：", shortest_tour, "总距离成本",min_tour_length)
+
+    order = [0] * 8
+    for i in range(8):
+        order[i] = shortest_tour[i]-1
+    # 将最优线路中的宝藏按顺序进行重新排列
+    temp_treasure_map = [0] * 8
+    for index,orderget in enumerate(order):
+        temp_treasure_map[index] = treasureinmap[orderget]
+    treasureinmap = temp_treasure_map
+    print("最优线路:", treasureinmap)
+    return treasureinmap, distances, seconddistance
+    '''tsp部分结束'''

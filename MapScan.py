@@ -22,8 +22,11 @@ def reshape_image_scan(image): #* 归一化图片尺寸：短边400，长边不�
 
 
 def detect(image): #* 提取所有轮廓
+    # 高斯模糊
+    # image = cv2.GaussianBlur(image, (3, 3), 0)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY_INV)      # 二值化
+    _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY_INV) # 参数：原图，阈值，最大值，阈值类型
+    cv2.imwrite("gray.jpg", gray)
     contours, hierachy = cv2.findContours(gray, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) # 提取轮廓
     print("轮廓提取完成")
     return image, contours, hierachy #* 返回轮廓
@@ -76,6 +79,9 @@ def detect_contours(vec):#* 判断这个轮廓和它的子轮廓以及子子轮�
 
 
 def find(image, contours, hierachy, root=0):#* 找到符合要求的轮廓
+    # 将counters在image上画出来
+    cv2.drawContours(image, contours, -1, (0, 0, 255), 3)
+    cv2.imwrite("imagemapCounters.jpg", image)
     rec = []
     for i in range(len(hierachy)):
         child = hierachy[i][2]
@@ -87,6 +93,7 @@ def find(image, contours, hierachy, root=0):#* 找到符合要求的轮廓
                 cx3, cy3 = compute_center(contours, child_child)
                 if detect_contours([cx1, cy1, cx2, cy2, cx3, cy3]):
                     rec.append([cx1, cy1, i, child, child_child])
+    print("rec:", rec)
     #? 计算得到所有在比例上符合要求的轮廓中心点
     xblue, yblue = FindBlueOne(image)
     #? 以距离xblue，yblue这个点最近的点为第0个点，将四个轮廓中心点按顺时针排序

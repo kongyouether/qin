@@ -6,6 +6,25 @@
 import cv2
 import numpy
 
+global colorLow_Blue,colorhigh_Blue, colorLow_Green, colorhigh_Green, colorLow_Yellow, colorhigh_Yellow, colorLow_Red_0, colorhigh_Red_0, colorLow_Red_1, colorhigh_Red_1
+
+colorLow_Blue = numpy.array([100, 43, 46])
+colorHigh_Blue = numpy.array([124, 255, 255])
+
+colorLow_Yellow = numpy.array([26, 43, 46])
+colorHigh_Yellow = numpy.array([34, 255, 255])
+
+colorLow_Green = numpy.array([34, 43, 30])
+colorHigh_Green = numpy.array([77, 255, 255])
+
+colorLow_Red_0 = numpy.array([0, 100, 50])
+colorHigh_Red_0 = numpy.array([10, 255, 255])
+
+colorLow_Red_1 = numpy.array([156, 100, 50])
+colorHigh_Red_1 = numpy.array([180, 255, 255])
+
+
+
 def reshape_image_scan(image):
     '''归一化图片尺寸：短边400，长边不超过800，短边400，长边超过800以长边800为主'''
     width, height = image.shape[1], image.shape[0]
@@ -58,156 +77,89 @@ def FindSecondOne(AllContours):
     return second
 
 
-def FindColorOne(frame,Color):  # (图片，颜色（0蓝，1黄，2绿）)
+def FindColorOne(frame,Color):  # (图片，颜色（0蓝,1黄,2绿,3红）)
+    global colorLow_Blue, colorHigh_Blue, colorLow_Green, colorHigh_Green, colorLow_Yellow, colorHigh_Yellow, colorLow_Red_0, colorHigh_Red_0, colorLow_Red_1, colorHigh_Red_1
 
     frame = reshape_image_scan(frame)
     frame = frame[0]
 
-    colorLow_Blue = numpy.array([100, 43, 46])
-    colorHigh_Blue = numpy.array([124, 255, 255])
-
-    colorLow_Yellow = numpy.array([26, 43, 46])
-    colorHigh_Yellow = numpy.array([34, 255, 255])
-
-    colorLow_Green = numpy.array([35, 43, 46])
-    colorHigh_Green = numpy.array([77, 255, 255])
-
     if Color == 0:
-        colorLow = colorLow_Blue
-        colorHigh = colorHigh_Blue
+        colorLow_0 = colorLow_Blue
+        colorHigh_0 = colorHigh_Blue
     elif Color == 1:
-        colorLow = colorLow_Yellow
-        colorHigh = colorHigh_Yellow
+        colorLow_0 = colorLow_Yellow
+        colorHigh_0 = colorHigh_Yellow
     elif Color == 2:
-        colorLow = colorLow_Green
-        colorHigh = colorHigh_Green
+        colorLow_0 = colorLow_Green
+        colorHigh_0 = colorHigh_Green
+    elif Color == 3:
+        colorLow_0 = colorLow_Red_0
+        colorHigh_0 = colorHigh_Red_0
+        colorLow_1 = colorLow_Red_1
+        colorHigh_1 = colorHigh_Red_1
 
     # Show the original image.
     # cv2.imshow('frame', frame)
 
     # Blur methods available, comment or uncomment to try different blur methods.
-    frameBGR = cv2.GaussianBlur(frame, (7, 7), 0)
-    # frameBGR = cv2.medianBlur(frameBGR, 7)
-    # frameBGR = cv2.bilateralFilter(frameBGR, 15 ,75, 75)
+    frameBGR = cv2.GaussianBlur(frame, (5, 5), 10)
+    frameBGR = cv2.medianBlur(frameBGR, 7)  # 中值滤波
+    # frameBGR = cv2.bilateralFilter(frameBGR, 15 ,75, 75) # 双边滤波
     # Show blurred image.
     # cv2.imshow('blurred', frameBGR)
     # HSV (Hue, Saturation, Value).
     # Convert the frame to HSV colour model.
     hsv = cv2.cvtColor(frameBGR, cv2.COLOR_BGR2HSV)
-
-
     # HSV values to define a colour range.
-    mask = cv2.inRange(hsv, colorLow, colorHigh)
-    # Show the first mask
-    # cv2.imshow('mask-plain', mask)
-    # cv2.waitKey(0)
+    if Color == 0 or Color == 1 or Color == 2:
+        mask = cv2.inRange(hsv, colorLow_0, colorHigh_0)
+    elif Color == 3:
+        mask0 = cv2.inRange(hsv, colorLow_0, colorHigh_0)
+        mask1 = cv2.inRange(hsv, colorLow_1, colorHigh_1)
+        mask = mask0 + mask1
+
     kernal = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernal)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernal)
 
     # Show morphological transformation mask
     image, contours, hierachy = detecte(mask)
+    cv2.drawContours(image, contours, -1, (0, 255, 0), 3)  # 画出轮廓, -1表示所有轮廓，（0,255,0）表示颜色，3表示线宽
+    # cv2.imshow('counter', image)
+
+    number = len(contours)
+    # 计算面积小于100的轮廓数量
+    for i in range(len(contours)):
+        if cv2.contourArea(contours[i]) < 100:
+            number = number - 1
+    print("number", number)
+
     if Color == 0:
         # cv2.imshow('maskblue', mask)
-        print("contours_blue", len(contours))
+        print("contours_blue", number)
 
     elif Color == 1:
         # cv2.imshow('maskyellow', mask)
-        print("contours_yellow", len(contours))
+        print("contours_yellow", number)
 
     elif Color == 2:
         # cv2.imshow('maskgreen', mask)
-        print("contours_green", len(contours))
+        print("contours_green", number)
+    elif Color == 3:
+        # cv2.imshow('maskred', mask)
+        print("contours_red", number)
     # Put mask over top of the original image.
-
+    # cv2.waitKey(0)
 
     # 如果轮廓数量小于2，返回原图, 不返回轮廓
-    if len(contours) < 2:
+    if number < 2:
         decision = 0
-        return frame, None, decision
+        return frame, contours, decision
     else:
         decision = 1
         return image, contours, decision
 
 
-def FindRedOne(frame,contours):
-    copy_contours = contours
-    frame = reshape_image_scan(frame)
-    frame = frame[0]
-    # 蓝色hsv
-    # lowHue = 100
-    # lowSat = 43
-    # lowVal = 46
-    # highHue = 124
-    # highSat = 255
-    # highVal = 255
-
-    # 红色hsv
-    lowHue_0 = 0
-    lowHue_1 = 156
-    lowSat = 100
-    lowVal = 100
-
-    highHue_0 = 10
-    highHue_1 = 180
-    highSat = 255
-    highVal = 255
-
-    # Show the original image.
-    # cv2.imshow('frame', frame)
-
-    # Blur methods available, comment or uncomment to try different blur methods.
-    frameBGR = cv2.GaussianBlur(frame, (15, 15), 10)
-    # frameBGR = cv2.medianBlur(frameBGR, 7)
-    # frameBGR = cv2.bilateralFilter(frameBGR, 15 ,75, 75)
-    # Show blurred image.
-    # cv2.imshow('blurred', frameBGR)
-    # HSV (Hue, Saturation, Value).
-    # Convert the frame to HSV colour model.
-    hsv = cv2.cvtColor(frameBGR, cv2.COLOR_BGR2HSV)
-    # HSV values to define a colour range.
-    colorLow_0 = numpy.array([lowHue_0, lowSat, lowVal])
-    colorHigh_0 = numpy.array([highHue_0, highSat, highVal])
-    mask_0 = cv2.inRange(hsv, colorLow_0, colorHigh_0)
-    colorLow_1 = numpy.array([lowHue_1, lowSat, lowVal])
-    colorHigh_1 = numpy.array([highHue_1, highSat, highVal])
-    mask_1 = cv2.inRange(hsv, colorLow_1, colorHigh_1)
-    mask = mask_0 + mask_1
-    # Show the first mask
-    # cv2.imshow('mask-plain', mask)
-
-    kernal = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernal)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernal)
-
-    # Show morphological transformation mask
-    # cv2.imshow('maskred', mask)
-    # Put mask over top of the original image.
-    image, contours, hierachy = detecte(mask)
-    print("contours_red", len(contours))
-    #如果轮廓数量小于2，返回原图
-    if len(contours) < 2:
-        decision = 0
-        return frame, copy_contours, decision
-    else:
-        decision = 1
-        return image, contours, decision
-
-
-def reshape_image_scan(image):
-    '''归一化图片尺寸：短边400，长边不超过800，短边400，长边超过800以长边800为主'''
-    width, height = image.shape[1], image.shape[0]
-    min_len = width
-    scale = width * 1.0 / 600
-    new_width = 600
-
-    new_height = int(height / scale)
-    if new_height > 600:
-        new_height = 600
-        scale = height * 1.0 / 600
-        new_width = int(width / scale)
-    out = cv2.resize(image, (new_width, new_height))
-    return out, new_width, new_height
 
 
 #定义形状检测函数
